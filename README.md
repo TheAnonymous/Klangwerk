@@ -15,9 +15,13 @@ it and frees it.
 - **Mixer** (`mixer.ts`, `effects.ts`): channel buses with drive, sidechain
   pump and sends; reverb, echo, ping-pong and chorus; a master that never
   clips (the app's inserts, gate, compressor, limiter, volume, soft ceiling).
-- **Time** (`transport.ts`): an audio context made inside the first tap, and
-  a transport that schedules steps ahead on the audio clock from a worker's
-  heartbeat, skips stalls in whole bars and renders offline.
+- **Time** (`transport.ts`, `cues.ts`): an audio context made inside the
+  first tap, a transport that schedules steps ahead on the audio clock from a
+  worker's heartbeat (with swing), skips stalls in whole bars and renders
+  offline, and cues that run screen updates when the sound is heard.
+- **Param** (`param.ts`): an AudioParam that remembers its automation, so
+  ramps can start where the value is (`rampTo`, `cancelAndHoldAtTime`),
+  ported from Tone.js and checked against it.
 - **Plumbing**: sound through the iPhone's ring/silent switch (`ios.ts`),
   chunked offline renders (`offline.ts`), WAV files (`wav.ts`) and a lossless
   live recorder on an AudioWorklet (`recorder.ts`).
@@ -66,4 +70,4 @@ All checks run locally; see [AGENTS.md](AGENTS.md).
 
 ## License
 
-MIT
+MIT. `param.ts` is ported from Tone.js (MIT), see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

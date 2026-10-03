@@ -63,6 +63,8 @@ export interface TransportOptions {
   step(step: number, time: number): void;
   /** Seconds the coming step lasts (it may change with the tempo). */
   stepDuration(): number;
+  /** How far the odd steps lean back, as a share of a step (0 straight; Tone.js's swing on 16ths is `swing · 2/3`). */
+  swing?(): number;
   /** How far ahead steps are scheduled, in seconds. */
   lookahead?: number;
   /** After a stall (a hidden tab, a busy phone) the transport skips ahead instead of rushing through missed steps, in whole groups of this many steps (16: bars, so bar-bound changes still land on a bar line). */
@@ -131,7 +133,8 @@ export class Transport {
 
   private scheduleStep(): void {
     const duration = this.options.stepDuration();
-    this.options.step(this.step, this.nextTime);
+    const lean = this.step % 2 === 1 ? (this.options.swing?.() ?? 0) * duration : 0;
+    this.options.step(this.step, lean ? this.nextTime + lean : this.nextTime);
     if (!this.running) return;
     this.step += 1;
     this.nextTime += duration;

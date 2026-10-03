@@ -4,6 +4,7 @@ interface Harness {
   renderTwice(seconds: number): Promise<{ peak: number; rmsDb: number; nonFinite: number; digest: string; steps: number; difference: number }>;
   clockTicks(ms: number): Promise<number>;
   record(ms: number): Promise<{ frames: number; peak: number }>;
+  paramConformance(seeds: number): Promise<{ worstValue: number; worstSample: number }>;
   violations: string[];
 }
 
@@ -49,4 +50,9 @@ test("the recorder's Blob worklet records the master under the production CSP", 
   const recording = await page.evaluate(() => window.klangwerk.record(500));
   expect(recording.frames).toBeGreaterThan(8_000);
   expect(recording.peak).toBeGreaterThan(10_000);
+});
+
+test("Param automates exactly like Tone.Param: 1000 random sequences of ramps, holds and approaches", async ({ page }) => {
+  const result = await page.evaluate(() => window.klangwerk.paramConformance(1000));
+  expect(result).toEqual({ worstValue: 0, worstSample: 0 });
 });

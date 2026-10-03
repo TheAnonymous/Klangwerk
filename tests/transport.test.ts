@@ -37,6 +37,14 @@ describe("transport", () => {
     expect(transport.step).toBe(5);
   });
 
+  it("swings the odd steps back by a share of a step, and keeps the grid", () => {
+    const times: number[] = [];
+    const transport = new Transport({ step: (_, time) => times.push(time), stepDuration: () => 0.1, swing: () => 0.25 });
+    transport.begin(fakeContext(), 0);
+    transport.renderUntil(0.4);
+    expect(times.map((time) => Math.round(time * 1000))).toEqual([0, 125, 200, 325]);
+  });
+
   it("skips a stall in whole groups and reports it, instead of rushing through missed steps", () => {
     const steps: number[] = [];
     const skips: number[] = [];

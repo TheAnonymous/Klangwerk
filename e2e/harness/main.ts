@@ -1,6 +1,7 @@
+import * as Tone from "tone";
 import {
   Clock, createBus, createChorus, createPingPong, createReverb, clap, crash, driveCurve, duck, fmBell, hallImpulse, kick, Kit, Master, MasterRecorder, midiToHz,
-  noiseHit, pulseWave, renderInChunks, snare, Transport, voice,
+  noiseHit, Param, pulseWave, renderInChunks, snare, Transport, voice,
 } from "../../src/index";
 
 /* A small song through the whole engine, for the browser tests. */
@@ -116,3 +117,71 @@ const violations: string[] = [];
 document.addEventListener("securitypolicyviolation", (event) => violations.push(`${event.violatedDirective} ${event.blockedURI}`));
 Object.assign(window, { klangwerk: { renderTwice, clockTicks, record, violations } });
 document.documentElement.dataset.ready = "1";
+
+
+/* ---- Param against Tone.Param: the same automation, the same values ------- */
+
+/** A repeatable random sequence (mulberry32). */
+function random(seed: number): () => number {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+type Automatable = Record<string, (...args: number[]) => unknown>;
+type Units = "number" | "frequency" | "decibels" | "gain";
+
+/** One random automation call on `param` at `time`, drawn from `next`. */
+function step(param: Automatable, time: number, units: Units, next: () => number): void {
+  const pick = (low: number, high: number) => low + next() * (high - low);
+  const value = () => (units === "frequency" ? pick(40, 8000) : units === "decibels" ? pick(-40, 0) : pick(0, 1));
+  switch (Math.floor(next() * 11)) {
+    case 0: param.setValueAtTime!(value(), time); break;
+    case 1: param.linearRampToValueAtTime!(value(), time + pick(0.01, 0.3)); break;
+    case 2: param.exponentialRampToValueAtTime!(value(), time + pick(0.01, 0.3)); break;
+    case 3: param.setTargetAtTime!(value(), time, pick(0.005, 0.2)); break;
+    case 4: param.cancelAndHoldAtTime!(time); break;
+    case 5: param.cancelScheduledValues!(time + pick(0, 0.2)); break;
+    case 6: param.rampTo!(value(), pick(0.01, 0.3), time); break;
+    case 7: param.linearRampTo!(value(), pick(0.01, 0.3), time); break;
+    case 8: param.exponentialRampTo!(value(), pick(0.01, 0.3), time); break;
+    case 9: param.targetRampTo!(value(), pick(0.01, 0.3), time); break;
+    default: param.setRampPoint!(time);
+  }
+}
+
+/** Plays the same 40 random calls on both and compares what they report and what they render. */
+async function paramConformance(seeds: number) {
+  let worstValue = 0;
+  let worstSample = 0;
+  for (let seed = 1; seed <= seeds; seed += 1) {
+    const units = (["number", "frequency", "decibels", "gain"] as const)[seed % 4]!;
+    const render = async (make: (context: OfflineAudioContext, offset: AudioParam) => Automatable) => {
+      const context = new OfflineAudioContext(1, 44_100 * 3, 44_100);
+      const source = context.createConstantSource();
+      const param = make(context, source.offset);
+      const next = random(seed);
+      const values: number[] = [];
+      let time = 0;
+      for (let index = 0; index < 40; index += 1) {
+        time += next() * 0.08;
+        step(param, time, units, next);
+        values.push(Number(param.getValueAtTime!(time + 0.013)));
+      }
+      source.connect(context.destination);
+      source.start(0);
+      return { values, samples: (await context.startRendering()).getChannelData(0) };
+    };
+    const ours = await render((context, offset) => new Param(context, offset, { units, value: 0.5 }) as unknown as Automatable);
+    const theirs = await render((context, offset) => new Tone.Param({ context: new Tone.Context(context), param: offset, units, value: 0.5 } as never) as unknown as Automatable);
+    const relative = (a: number, b: number) => Math.abs(a - b) / Math.max(1, Math.abs(a));
+    ours.values.forEach((value, index) => { worstValue = Math.max(worstValue, relative(value, theirs.values[index]!)); });
+    ours.samples.forEach((value, index) => { worstSample = Math.max(worstSample, relative(value, theirs.samples[index]!)); });
+  }
+  return { worstValue, worstSample };
+}
+
+Object.assign((window as unknown as { klangwerk: object }).klangwerk, { paramConformance });
