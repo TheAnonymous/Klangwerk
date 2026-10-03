@@ -186,7 +186,7 @@ export abstract class SoundNode {
   }
 
   immediate(): number {
-    return this.context.currentTime;
+    return currentTime();
   }
 
   connect(destination: Destination, outputNumber = 0, inputNumber = 0): this {

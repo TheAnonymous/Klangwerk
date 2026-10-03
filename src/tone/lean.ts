@@ -1,5 +1,5 @@
 import type { Param } from "../param";
-import { connect, param, SoundNode } from "./lite";
+import { connect, currentTime, param, SoundNode } from "./lite";
 
 /*
  * Lean replacements for Tone.js effect components.
@@ -348,7 +348,7 @@ export class LeanChorus extends SoundNode {
       feedback.connect(split);
       this.nodes.push(feedback);
     }
-    const startAt = this.context.currentTime;
+    const startAt = currentTime();
     this.oscillators.forEach((oscillator) => oscillator.start(startAt));
     this.frequency = new ParamGroup(this.oscillators.map((oscillator) => param(oscillator.frequency, "frequency")));
     if (options.wet === undefined || options.wet === 1) {
@@ -414,7 +414,7 @@ export class LeanCrossFade extends SoundNode {
     split.connect(this.b.gain, 1);
     panner.pan.value = 0;
     this.fade = new AffineParam(this.context, panner.pan, 2, -1, fade) as unknown as Param;
-    this.constant.start(this.context.currentTime);
+    this.constant.start(currentTime());
     this.nodes = [this.a, this.b, this.output, panner, split, this.constant];
   }
 
@@ -593,7 +593,7 @@ export class LeanVibrato extends SoundNode {
     this.input.connect(this.output.a);
     this.input.connect(delay);
     delay.connect(this.output.b);
-    this.oscillator.start(this.context.currentTime);
+    this.oscillator.start(currentTime());
     this.nodes = [this.input, delay, modulation, this.oscillator];
   }
 

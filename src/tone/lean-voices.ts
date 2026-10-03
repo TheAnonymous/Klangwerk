@@ -1,5 +1,5 @@
 import { dbToGain, type Param } from "../param";
-import { connect, Gain, param, SoundNode } from "./lite";
+import { connect, currentTime, Gain, param, SoundNode } from "./lite";
 
 /*
  * Lean voices: the same oscillator, envelope and noise behaviour as the
@@ -247,7 +247,7 @@ export class DetuneSource {
     this.source = context.createConstantSource();
     this.param = param(this.source.offset, "cents");
     this.param.setValueAtTime(0, 0);
-    this.source.start(context.currentTime);
+    this.source.start(currentTime());
   }
 
   get value(): number {
