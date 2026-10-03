@@ -504,7 +504,7 @@ export class FrequencyEnvelope extends SoundNode {
     return this;
   }
 
-  triggerRelease(time: number): this {
+  triggerRelease(time: number = this.now()): this {
     if (this.signal.getValueAtTime(time) > 0) {
       if (this.release < this.sampleTime) this.signal.setValueAtTime(0, time);
       else this.signal.targetRampTo(0, this.release, time);
