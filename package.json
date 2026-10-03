@@ -6,7 +6,8 @@
   "license": "MIT",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./tone": "./src/tone/index.ts"
   },
   "files": [
     "src"

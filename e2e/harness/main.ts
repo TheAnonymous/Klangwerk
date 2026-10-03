@@ -1,4 +1,5 @@
 import * as Tone from "tone";
+import { FrequencyEnvelope, swapSound, useContext } from "../../src/tone/index";
 import {
   Clock, createBus, createChorus, createPingPong, createReverb, clap, crash, driveCurve, duck, fmBell, hallImpulse, kick, Kit, Master, MasterRecorder, midiToHz,
   noiseHit, Param, pulseWave, renderInChunks, snare, Transport, voice,
@@ -185,3 +186,38 @@ async function paramConformance(seeds: number) {
 }
 
 Object.assign((window as unknown as { klangwerk: object }).klangwerk, { paramConformance });
+
+/* ---- FrequencyEnvelope against Tone.FrequencyEnvelope ---------------------- */
+
+const ENVELOPE = { attack: 0.002, decay: 0.21, sustain: 0.08, release: 0.06, baseFrequency: 60, octaves: 4.4, exponent: 2.35 };
+const PLAN: readonly [number, number, number][] = [[0.05, 0.86, 0.12], [0.3, 1, 0.05], [0.33, 0.86, 0.2], [0.8, 1, 0.4]];
+
+async function frequencyEnvelopeConformance() {
+  const ours = new OfflineAudioContext(1, 44_100, 44_100);
+  const previous = useContext(ours);
+  try {
+    const envelope = new FrequencyEnvelope(ENVELOPE);
+    envelope.octaves = 3.1;
+    envelope.connect(ours.destination);
+    for (const [time, velocity, length] of PLAN) {
+      envelope.triggerAttack(time, velocity);
+      envelope.triggerRelease(time + length);
+    }
+  } finally {
+    swapSound(previous);
+  }
+  const mine = (await ours.startRendering()).getChannelData(0);
+  const theirs = (await Tone.Offline(() => {
+    const envelope = new Tone.FrequencyEnvelope(ENVELOPE).toDestination();
+    envelope.octaves = 3.1;
+    for (const [time, velocity, length] of PLAN) {
+      envelope.triggerAttack(time, velocity);
+      envelope.triggerRelease(time + length);
+    }
+  }, 1, 1, 44_100)).getChannelData(0);
+  let worst = 0;
+  mine.forEach((value, index) => { worst = Math.max(worst, Math.abs(value - theirs[index]!) / Math.max(1, Math.abs(value))); });
+  return { worst, peak: Math.max(...mine) };
+}
+
+Object.assign((window as unknown as { klangwerk: object }).klangwerk, { frequencyEnvelopeConformance });

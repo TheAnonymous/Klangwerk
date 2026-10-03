@@ -5,6 +5,7 @@ interface Harness {
   clockTicks(ms: number): Promise<number>;
   record(ms: number): Promise<{ frames: number; peak: number }>;
   paramConformance(seeds: number): Promise<{ worstValue: number; worstSample: number }>;
+  frequencyEnvelopeConformance(): Promise<{ worst: number; peak: number }>;
   violations: string[];
 }
 
@@ -55,4 +56,10 @@ test("the recorder's Blob worklet records the master under the production CSP", 
 test("Param automates exactly like Tone.Param: 1000 random sequences of ramps, holds and approaches", async ({ page }) => {
   const result = await page.evaluate(() => window.klangwerk.paramConformance(1000));
   expect(result).toEqual({ worstValue: 0, worstSample: 0 });
+});
+
+test("the Tone layer's FrequencyEnvelope renders like Tone.FrequencyEnvelope", async ({ page }) => {
+  const result = await page.evaluate(() => window.klangwerk.frequencyEnvelopeConformance());
+  expect(result.peak).toBeGreaterThan(400);
+  expect(result.worst).toBeLessThan(1e-6);
 });

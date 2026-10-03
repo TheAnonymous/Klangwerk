@@ -1,6 +1,6 @@
 # Third-party notices
 
-`src/param.ts` ports the automation semantics of Tone.js 15.5 (`Param`, `Timeline`; https://github.com/Tonejs/Tone.js). Tone.js is also a development dependency, used only by the tests that check the port against it.
+`src/param.ts` ports the automation semantics of Tone.js 15.5 (`Param`, `Timeline`; https://github.com/Tonejs/Tone.js), and `src/tone/` rebuilds Tone.js nodes and instruments (Gain, Panner, Delay, Compressor, Limiter, WaveShaper, Noise, FrequencyEnvelope, Filter, EQ3, Chorus, CrossFade, StereoWidener, Vibrato, Oscillator, Envelope, Synth voices) on native nodes; the lean nodes and voices come from Kitty and Track303 (MIT). Tone.js is also a development dependency, used only by the tests that check the port against it.
 
 ## Tone.js
 

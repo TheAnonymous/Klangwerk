@@ -22,6 +22,12 @@ it and frees it.
 - **Param** (`param.ts`): an AudioParam that remembers its automation, so
   ramps can start where the value is (`rampTo`, `cancelAndHoldAtTime`),
   ported from Tone.js and checked against it.
+- **Tone layer** (`klangwerk/tone`): for apps whose sound was made with
+  Tone.js, the pieces they used (Gain, Panner, Delay, Compressor, Limiter,
+  WaveShaper, Noise, FrequencyEnvelope, filters with rolloff, EQ3, chorus,
+  cross-fade, widener, vibrato, Tone's oscillators, envelopes and synth
+  voices) on native nodes, with Tone's numbers, automation and "now", and a
+  current context as Tone's global one. Checked against Tone.js.
 - **Plumbing**: sound through the iPhone's ring/silent switch (`ios.ts`),
   chunked offline renders (`offline.ts`), WAV files (`wav.ts`) and a lossless
   live recorder on an AudioWorklet (`recorder.ts`).
@@ -70,4 +76,4 @@ All checks run locally; see [AGENTS.md](AGENTS.md).
 
 ## License
 
-MIT. `param.ts` is ported from Tone.js (MIT), see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+MIT. `param.ts` and `src/tone/` are ported from Tone.js (MIT), see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
