@@ -267,7 +267,9 @@ export class Param {
         this.param.cancelScheduledValues(after.time);
         this.events.cancel(after.time);
       } else {
-        this.param.cancelAndHoldAtTime(time);
+        // Firefox has no cancelAndHoldAtTime; nothing is scheduled after `time` here, so cancelling just after it holds the same.
+        if (typeof this.param.cancelAndHoldAtTime === "function") this.param.cancelAndHoldAtTime(time);
+        else this.param.cancelScheduledValues(time + this.sampleTime);
         this.events.cancel(time + this.sampleTime);
       }
     } else if (after) {

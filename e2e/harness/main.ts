@@ -154,38 +154,59 @@ function step(param: Automatable, time: number, units: Units, next: () => number
   }
 }
 
+/** Plays seed's 40 random calls on the param `make` builds; returns what it reports and what it renders. */
+async function renderSequence(seed: number, make: (context: OfflineAudioContext, offset: AudioParam, units: Units) => Automatable) {
+  const units = (["number", "frequency", "decibels", "gain"] as const)[seed % 4]!;
+  const context = new OfflineAudioContext(1, 44_100 * 3, 44_100);
+  const source = context.createConstantSource();
+  const param = make(context, source.offset, units);
+  const next = random(seed);
+  const values: number[] = [];
+  let time = 0;
+  for (let index = 0; index < 40; index += 1) {
+    time += next() * 0.08;
+    step(param, time, units, next);
+    values.push(Number(param.getValueAtTime!(time + 0.013)));
+  }
+  source.connect(context.destination);
+  source.start(0);
+  return { values, samples: (await context.startRendering()).getChannelData(0) };
+}
+
+const ourParam = (context: OfflineAudioContext, offset: AudioParam, units: Units) => new Param(context, offset, { units, value: 0.5 }) as unknown as Automatable;
+const relative = (a: number, b: number) => Math.abs(a - b) / Math.max(1, Math.abs(a));
+
 /** Plays the same 40 random calls on both and compares what they report and what they render. */
 async function paramConformance(seeds: number) {
   let worstValue = 0;
   let worstSample = 0;
   for (let seed = 1; seed <= seeds; seed += 1) {
-    const units = (["number", "frequency", "decibels", "gain"] as const)[seed % 4]!;
-    const render = async (make: (context: OfflineAudioContext, offset: AudioParam) => Automatable) => {
-      const context = new OfflineAudioContext(1, 44_100 * 3, 44_100);
-      const source = context.createConstantSource();
-      const param = make(context, source.offset);
-      const next = random(seed);
-      const values: number[] = [];
-      let time = 0;
-      for (let index = 0; index < 40; index += 1) {
-        time += next() * 0.08;
-        step(param, time, units, next);
-        values.push(Number(param.getValueAtTime!(time + 0.013)));
-      }
-      source.connect(context.destination);
-      source.start(0);
-      return { values, samples: (await context.startRendering()).getChannelData(0) };
-    };
-    const ours = await render((context, offset) => new Param(context, offset, { units, value: 0.5 }) as unknown as Automatable);
-    const theirs = await render((context, offset) => new Tone.Param({ context: new Tone.Context(context), param: offset, units, value: 0.5 } as never) as unknown as Automatable);
-    const relative = (a: number, b: number) => Math.abs(a - b) / Math.max(1, Math.abs(a));
+    const ours = await renderSequence(seed, ourParam);
+    const theirs = await renderSequence(seed, (context, offset, units) => new Tone.Param({ context: new Tone.Context(context), param: offset, units, value: 0.5 } as never) as unknown as Automatable);
     ours.values.forEach((value, index) => { worstValue = Math.max(worstValue, relative(value, theirs.values[index]!)); });
     ours.samples.forEach((value, index) => { worstSample = Math.max(worstSample, relative(value, theirs.samples[index]!)); });
   }
   return { worstValue, worstSample };
 }
 
-Object.assign((window as unknown as { klangwerk: object }).klangwerk, { paramConformance });
+/** The same sequences with the browser's cancelAndHoldAtTime hidden, as in Firefox: they must render the same. */
+async function paramWithoutCancelAndHold(seeds: number) {
+  const native = Object.getOwnPropertyDescriptor(AudioParam.prototype, "cancelAndHoldAtTime")!;
+  let worstSample = 0;
+  for (let seed = 1; seed <= seeds; seed += 1) {
+    const withIt = await renderSequence(seed, ourParam);
+    delete (AudioParam.prototype as { cancelAndHoldAtTime?: unknown }).cancelAndHoldAtTime;
+    try {
+      const without = await renderSequence(seed, ourParam);
+      withIt.samples.forEach((value, index) => { worstSample = Math.max(worstSample, relative(value, without.samples[index]!)); });
+    } finally {
+      Object.defineProperty(AudioParam.prototype, "cancelAndHoldAtTime", native);
+    }
+  }
+  return { worstSample };
+}
+
+Object.assign((window as unknown as { klangwerk: object }).klangwerk, { paramConformance, paramWithoutCancelAndHold });
 
 /* ---- FrequencyEnvelope against Tone.FrequencyEnvelope ---------------------- */
 
