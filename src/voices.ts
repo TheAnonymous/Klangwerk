@@ -29,6 +29,8 @@ function connectThrough(source: AudioNode, nodes: readonly AudioNode[], out: Aud
 export interface ToneHit<W extends string = never> {
   wave: OscillatorType | W;
   frequency: number;
+  /** A signal in cents added to the pitch (a wobble shared by several voices). */
+  detuneBy?: AudioNode;
   /** The pitch falls to `to` within `time`: the thump of a kick or a tom. */
   drop?: { to: number; time: number };
   filters?: readonly FilterSpec[];
@@ -43,6 +45,7 @@ export interface ToneHit<W extends string = never> {
 /** A struck oscillator. Returns its amp, for sends. */
 export function toneHit<W extends string>(kit: Kit<W>, out: AudioNode, time: number, hit: ToneHit<W>): GainNode {
   const osc = kit.osc(hit.wave, hit.frequency);
+  hit.detuneBy?.connect(osc.detune);
   if (hit.drop) {
     osc.frequency.setValueAtTime(hit.frequency, time);
     osc.frequency.exponentialRampToValueAtTime(hit.drop.to, time + hit.drop.time);
@@ -166,6 +169,8 @@ export interface OscSpec<W extends string = never> {
   wave: OscillatorType | W;
   frequency: number;
   detune?: number;
+  /** A signal in cents added to the pitch (a wobble shared by several voices). */
+  detuneBy?: AudioNode;
   /** A gain right after the oscillator. */
   level?: number;
   /** Past the filter, straight into the amp (a sub under a filtered saw). */
@@ -191,7 +196,11 @@ export interface Patch<W extends string = never> {
 
 /** Oscillators → filter → amp: the subtractive voice basses, pads, stabs, arps and leads are made of. */
 export function voice<W extends string>(kit: Kit<W>, out: AudioNode, time: number, patch: Patch<W>): { amp: GainNode; end: number } {
-  const oscs = patch.oscs.map((spec) => kit.osc(spec.wave, spec.frequency, spec.detune));
+  const oscs = patch.oscs.map((spec) => {
+    const osc = kit.osc(spec.wave, spec.frequency, spec.detune);
+    spec.detuneBy?.connect(osc.detune);
+    return osc;
+  });
   const tone = patch.filter ? kit.filter(patch.filter.type, patch.filter.frequency, patch.filter.q) : null;
   if (tone && patch.filter?.env) automate(tone.frequency, time, patch.filter.env);
   const amp = kit.gain();
