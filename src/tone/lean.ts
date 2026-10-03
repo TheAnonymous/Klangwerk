@@ -222,12 +222,14 @@ export interface LeanEq3Options {
 
 /**
  * Same as Tone.EQ3: Tone.MultibandSplit (12 dB/oct crossovers, Q 1) with a
- * decibel gain per band, summed into one output.
+ * decibel gain per band, summed into one output. The source feeds the three
+ * band filters and the next node sums the three bands itself, as Tone's input
+ * and output gains (both unity) did.
  */
 export class LeanEq3 extends SoundNode {
   readonly name = "LeanEq3";
-  readonly input: GainNode;
-  readonly output: GainNode;
+  readonly input: readonly BiquadFilterNode[];
+  readonly output: readonly GainNode[];
   readonly low: Param;
   readonly mid: Param;
   readonly high: Param;
@@ -246,8 +248,6 @@ export class LeanEq3 extends SoundNode {
       node.Q.value = 1;
       return node;
     };
-    this.input = this.context.createGain();
-    this.output = this.context.createGain();
     const lowBand = biquad("lowpass", lowFrequency);
     const lowMid = biquad("highpass", lowFrequency);
     const midBand = biquad("lowpass", highFrequency);
@@ -255,22 +255,19 @@ export class LeanEq3 extends SoundNode {
     const lowGain = this.context.createGain();
     const midGain = this.context.createGain();
     const highGain = this.context.createGain();
-    this.input.connect(lowBand);
-    this.input.connect(highBand);
-    this.input.connect(lowMid);
+    // In the order Tone's input gain fed them, and summed in band order.
+    this.input = [lowBand, highBand, lowMid];
+    this.output = [lowGain, midGain, highGain];
     lowMid.connect(midBand);
     lowBand.connect(lowGain);
     midBand.connect(midGain);
     highBand.connect(highGain);
-    lowGain.connect(this.output);
-    midGain.connect(this.output);
-    highGain.connect(this.output);
     this.low = param(lowGain.gain, "decibels", options.low ?? 0);
     this.mid = param(midGain.gain, "decibels", options.mid ?? 0);
     this.high = param(highGain.gain, "decibels", options.high ?? 0);
     this.lowFrequency = new ParamGroup([lowBand, lowMid].map((node) => param(node.frequency, "frequency", lowFrequency)));
     this.highFrequency = new ParamGroup([midBand, highBand].map((node) => param(node.frequency, "frequency", highFrequency)));
-    this.nodes = [this.input, lowBand, lowMid, midBand, highBand, lowGain, midGain, highGain, this.output];
+    this.nodes = [lowBand, lowMid, midBand, highBand, lowGain, midGain, highGain];
   }
 
   dispose(): this {

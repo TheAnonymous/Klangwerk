@@ -1,5 +1,5 @@
 import * as Tone from "tone";
-import { FrequencyEnvelope, midiFrequency, setBpm, swapSound, toFrequency, toSeconds, useContext } from "../../src/tone/index";
+import { connect, FrequencyEnvelope, LeanEq3, midiFrequency, setBpm, swapSound, toFrequency, toSeconds, useContext } from "../../src/tone/index";
 import {
   Clock, createBus, createChorus, createPingPong, createReverb, clap, crash, driveCurve, duck, fmBell, hallImpulse, kick, Kit, Master, MasterRecorder, midiToHz,
   noiseHit, Param, pulseWave, renderInChunks, snare, Transport, voice,
@@ -274,3 +274,46 @@ function noteValueConformance(): string[] {
 }
 
 Object.assign((window as unknown as { klangwerk: object }).klangwerk, { noteValueConformance });
+
+/* ---- LeanEq3 (bands summed by the next node) against Tone.EQ3 ------------- */
+
+async function eq3Conformance() {
+  const options = { low: 4, mid: -3, high: 2.5, lowFrequency: 180, highFrequency: 4_800 };
+  const noise = (context: BaseAudioContext) => {
+    const buffer = context.createBuffer(2, 44_100, 44_100);
+    const next = random(7);
+    for (let channel = 0; channel < 2; channel += 1) buffer.getChannelData(channel).forEach((_, index, data) => { data[index] = next() * 2 - 1; });
+    return buffer;
+  };
+  const ours = new OfflineAudioContext(2, 44_100, 44_100);
+  const previous = useContext(ours);
+  try {
+    const source = ours.createBufferSource();
+    source.buffer = noise(ours);
+    const eq = new LeanEq3(options);
+    const after = ours.createGain();
+    connect(source, eq);
+    eq.connect(after);
+    after.connect(ours.destination);
+    source.start(0);
+  } finally {
+    swapSound(previous);
+  }
+  const mine = await ours.startRendering();
+  const theirs = (await Tone.Offline((context) => {
+    const source = new Tone.ToneBufferSource(noise(context.rawContext as unknown as BaseAudioContext) as never);
+    const eq = new Tone.EQ3(options).toDestination();
+    source.connect(eq);
+    source.start(0);
+  }, 1, 2, 44_100)).get()!;
+  let worst = 0;
+  let peak = 0;
+  for (let channel = 0; channel < 2; channel += 1) {
+    const a = mine.getChannelData(channel);
+    const b = theirs.getChannelData(channel);
+    a.forEach((value, index) => { worst = Math.max(worst, Math.abs(value - b[index]!)); peak = Math.max(peak, Math.abs(value)); });
+  }
+  return { worst, peak };
+}
+
+Object.assign((window as unknown as { klangwerk: object }).klangwerk, { eq3Conformance });

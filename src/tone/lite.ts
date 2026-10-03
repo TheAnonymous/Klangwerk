@@ -153,32 +153,42 @@ export function midiFrequency(midi: number): number {
 
 export type Destination = SoundNode | AudioNode | AudioParam | Param;
 
-function nativeOutput(source: SoundNode | AudioNode): AudioNode {
-  let node: SoundNode | AudioNode = source;
-  while (node instanceof SoundNode) node = node.output;
-  return node;
+/**
+ * Where a SoundNode is entered or left. Several nodes stand for a fan-out or
+ * a sum the neighbour does itself: Chromium spends about 3 µs per active node
+ * and render quantum, so a unity gain only there to split or sum is not free.
+ */
+export type Port = AudioNode | SoundNode | readonly (AudioNode | SoundNode)[];
+
+function nativeOutputs(source: Port): AudioNode[] {
+  if (Array.isArray(source)) return (source as readonly (AudioNode | SoundNode)[]).flatMap(nativeOutputs);
+  return source instanceof SoundNode ? nativeOutputs(source.output) : [source as AudioNode];
 }
 
-function nativeInput(destination: Destination): AudioNode | AudioParam {
-  let node: Destination | undefined = destination;
-  while (node instanceof SoundNode || node instanceof Param) node = node instanceof Param ? node.param : node.input;
-  if (!node) throw new Error("cannot connect to a node without input");
-  return node;
+function nativeInputs(destination: Destination | readonly (AudioNode | SoundNode)[] | undefined): (AudioNode | AudioParam)[] {
+  if (Array.isArray(destination)) return (destination as readonly (AudioNode | SoundNode)[]).flatMap(nativeInputs);
+  if (destination instanceof Param) return [destination.param];
+  if (destination instanceof SoundNode) return nativeInputs(destination.input);
+  if (!destination) throw new Error("cannot connect to a node without input");
+  return [destination as AudioNode | AudioParam];
 }
 
 /** Connects the output of `source` to the input of `destination` (as Tone.connect). */
 export function connect(source: SoundNode | AudioNode, destination: Destination, outputNumber = 0, inputNumber = 0): void {
-  const from = nativeOutput(source);
-  const to = nativeInput(destination);
-  if (to instanceof AudioParam) from.connect(to, outputNumber);
-  else from.connect(to, outputNumber, inputNumber);
+  const targets = nativeInputs(destination);
+  for (const from of nativeOutputs(source)) {
+    for (const to of targets) {
+      if (to instanceof AudioParam) from.connect(to, outputNumber);
+      else from.connect(to, outputNumber, inputNumber);
+    }
+  }
 }
 
 /** A piece of graph with an input and an output, built in the current context (as Tone.ToneAudioNode). */
 export abstract class SoundNode {
   readonly context: BaseAudioContext = sound().context;
-  abstract readonly input: AudioNode | SoundNode | undefined;
-  abstract readonly output: AudioNode | SoundNode;
+  abstract readonly input: Port | undefined;
+  abstract readonly output: Port;
 
   get sampleTime(): number {
     return 1 / this.context.sampleRate;
@@ -198,12 +208,13 @@ export abstract class SoundNode {
   }
 
   disconnect(destination?: Destination): this {
-    const from = nativeOutput(this);
-    if (destination === undefined) from.disconnect();
-    else {
-      const to = nativeInput(destination);
-      if (to instanceof AudioParam) from.disconnect(to);
-      else from.disconnect(to);
+    const targets = destination === undefined ? null : nativeInputs(destination);
+    for (const from of nativeOutputs(this)) {
+      if (!targets) from.disconnect();
+      else for (const to of targets) {
+        if (to instanceof AudioParam) from.disconnect(to);
+        else from.disconnect(to);
+      }
     }
     return this;
   }
@@ -225,7 +236,7 @@ export abstract class SoundNode {
   }
 
   dispose(): this {
-    nativeOutput(this).disconnect();
+    for (const from of nativeOutputs(this)) from.disconnect();
     return this;
   }
 }

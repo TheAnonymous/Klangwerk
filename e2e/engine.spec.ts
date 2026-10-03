@@ -8,6 +8,7 @@ interface Harness {
   paramWithoutCancelAndHold(seeds: number): Promise<{ worstSample: number }>;
   frequencyEnvelopeConformance(): Promise<{ worst: number; peak: number }>;
   noteValueConformance(): string[];
+  eq3Conformance(): Promise<{ worst: number; peak: number }>;
   violations: string[];
 }
 
@@ -73,4 +74,10 @@ test("the Tone layer's FrequencyEnvelope renders like Tone.FrequencyEnvelope", a
 
 test("note values (incl. triplets) and pitches match Tone.Time and Tone.Frequency bit for bit", async ({ page }) => {
   expect(await page.evaluate(() => window.klangwerk.noteValueConformance())).toEqual([]);
+});
+
+test("LeanEq3, its bands summed by the next node, renders like Tone.EQ3", async ({ page }) => {
+  const result = await page.evaluate(() => window.klangwerk.eq3Conformance());
+  expect(result.peak).toBeGreaterThan(0.5);
+  expect(result.worst).toBeLessThan(1e-6);
 });

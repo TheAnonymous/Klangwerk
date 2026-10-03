@@ -135,20 +135,22 @@ function oscillator(context: BaseAudioContext, type: BasicWave, phaseDegrees = 0
  * (carrier plus modulator at `harmonicity`, depth `modulationIndex · f`).
  */
 export class LeanTone {
-  readonly output: GainNode;
+  /** The level gain of a fat oscillator; otherwise the source itself (a unity gain would cost a node per note). */
+  readonly output: AudioNode;
   readonly frequency: MappedParam;
   readonly detune: MappedParam;
   private readonly sources: OscillatorNode[];
   private readonly extraNodes: AudioNode[];
 
   constructor(readonly context: BaseAudioContext, spec: ToneSpec, frequency = 440, detune = 0) {
-    this.output = context.createGain();
     this.extraNodes = [];
     if (spec.kind === "fat") {
       const count = Math.max(1, Math.round(spec.count));
-      this.output.gain.value = dbToGain(-6 - count * 1.1);
+      const level = context.createGain();
+      level.gain.value = dbToGain(-6 - count * 1.1);
+      this.output = level;
       this.sources = Array.from({ length: count }, (_, index) => oscillator(context, spec.type, (index / count) * 360));
-      this.sources.forEach((source) => source.connect(this.output));
+      this.sources.forEach((source) => source.connect(level));
       const start = -spec.spread / 2;
       const step = count > 1 ? spec.spread / (count - 1) : 0;
       this.frequency = new MappedParam(this.sources.map((source) => ({ param: param(source.frequency, "frequency"), scale: 1, offset: 0 })), frequency);
@@ -162,7 +164,7 @@ export class LeanTone {
       threshold.curve = pulseCurve();
       triangle.connect(threshold);
       width.connect(threshold);
-      threshold.connect(this.output);
+      this.output = threshold;
       this.sources = [triangle, width as unknown as OscillatorNode];
       this.extraNodes.push(threshold);
       this.frequency = new MappedParam([{ param: param(triangle.frequency, "frequency"), scale: 1, offset: 0 }], frequency);
@@ -175,7 +177,7 @@ export class LeanTone {
       depth.gain.value = 0;
       modulator.connect(depth);
       depth.connect(carrier.frequency);
-      carrier.connect(this.output);
+      this.output = carrier;
       this.sources = [carrier, modulator];
       this.extraNodes.push(depth);
       this.frequency = new MappedParam([
@@ -189,7 +191,7 @@ export class LeanTone {
       ], detune);
     } else {
       const source = oscillator(context, spec.type);
-      source.connect(this.output);
+      this.output = source;
       this.sources = [source];
       this.frequency = new MappedParam([{ param: param(source.frequency, "frequency"), scale: 1, offset: 0 }], frequency);
       this.detune = new MappedParam([{ param: param(source.detune, "cents"), scale: 1, offset: 0 }], detune);
