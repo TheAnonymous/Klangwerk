@@ -198,6 +198,7 @@ async function frequencyEnvelopeConformance() {
   try {
     const envelope = new FrequencyEnvelope(ENVELOPE);
     envelope.octaves = 3.1;
+    envelope.baseFrequency = 85;
     envelope.connect(ours.destination);
     for (const [time, velocity, length] of PLAN) {
       envelope.triggerAttack(time, velocity);
@@ -210,6 +211,7 @@ async function frequencyEnvelopeConformance() {
   const theirs = (await Tone.Offline(() => {
     const envelope = new Tone.FrequencyEnvelope(ENVELOPE).toDestination();
     envelope.octaves = 3.1;
+    envelope.baseFrequency = 85;
     for (const [time, velocity, length] of PLAN) {
       envelope.triggerAttack(time, velocity);
       envelope.triggerRelease(time + length);

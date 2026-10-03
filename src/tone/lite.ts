@@ -427,7 +427,8 @@ export class FrequencyEnvelope extends SoundNode {
   private readonly signal: Param;
   private readonly factor: Param;
   private readonly addend: Param;
-  private readonly baseFrequency: number;
+  private base: number;
+  private range: number;
   private readonly sources: ConstantSourceNode[];
   private readonly nodes: AudioNode[];
   private min: number;
@@ -439,9 +440,10 @@ export class FrequencyEnvelope extends SoundNode {
     this.decay = options.decay;
     this.sustain = options.sustain;
     this.release = options.release;
-    this.baseFrequency = toFrequency(options.baseFrequency);
-    this.min = this.baseFrequency;
-    this.max = this.baseFrequency * Math.pow(2, options.octaves);
+    this.base = toFrequency(options.baseFrequency);
+    this.range = options.octaves;
+    this.min = this.base;
+    this.max = this.base * Math.pow(2, options.octaves);
     const context = this.context;
     const level = context.createConstantSource();
     this.signal = startParam(level.offset, "number", 0);
@@ -470,7 +472,20 @@ export class FrequencyEnvelope extends SoundNode {
    * 303's accents have always sounded with that.
    */
   set octaves(octaves: number) {
-    this.max = this.baseFrequency * Math.pow(2, octaves);
+    this.range = octaves;
+    this.max = this.base * Math.pow(2, octaves);
+    this.setRange();
+  }
+
+  /** The lowest frequency; as in Tone, the range is set for the new minimum and then once more for the octaves on top. */
+  set baseFrequency(frequency: number | string) {
+    this.base = toFrequency(frequency);
+    this.min = this.base;
+    this.setRange();
+    this.octaves = this.range;
+  }
+
+  private setRange(): void {
     this.addend.value = this.min;
     this.factor.value = this.max - this.min;
   }
