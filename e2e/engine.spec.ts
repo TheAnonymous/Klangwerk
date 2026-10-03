@@ -7,6 +7,7 @@ interface Harness {
   paramConformance(seeds: number): Promise<{ worstValue: number; worstSample: number }>;
   paramWithoutCancelAndHold(seeds: number): Promise<{ worstSample: number }>;
   frequencyEnvelopeConformance(): Promise<{ worst: number; peak: number }>;
+  noteValueConformance(): string[];
   violations: string[];
 }
 
@@ -68,4 +69,8 @@ test("the Tone layer's FrequencyEnvelope renders like Tone.FrequencyEnvelope", a
   const result = await page.evaluate(() => window.klangwerk.frequencyEnvelopeConformance());
   expect(result.peak).toBeGreaterThan(400);
   expect(result.worst).toBeLessThan(1e-6);
+});
+
+test("note values (incl. triplets) and pitches match Tone.Time and Tone.Frequency bit for bit", async ({ page }) => {
+  expect(await page.evaluate(() => window.klangwerk.noteValueConformance())).toEqual([]);
 });

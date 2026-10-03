@@ -111,9 +111,12 @@ function startParam(native: AudioParam, units: ParamUnits, value: number, conver
 
 // ---- note values --------------------------------------------------------------
 
-/** Seconds of a number (seconds) or a note value ("4n", "8n", "16n", "8n.") at the current tempo. */
+/** Seconds of a number (seconds) or a note value ("4n", "8n", "16n", "8n.", triplets "8t") at the current tempo. */
 export function toSeconds(time: number | string): number {
   if (typeof time === "number") return time;
+  const triplet = /^(\d+)t$/i.exec(time);
+  // Tone: a triplet "Nt" lasts 8 / (N · 3) beats.
+  if (triplet) return (60 / sound().bpm) * (8 / (Number.parseInt(triplet[1]!, 10) * 3));
   const match = /^(\d+)n(\.?)$/i.exec(time);
   if (!match) throw new Error(`note value: ${time}`);
   const divisor = Number.parseInt(match[1]!, 10);

@@ -386,12 +386,16 @@ export interface OneShotVoiceOptions {
   volume?: number;
   /** A persistent detune (cents) every note follows, like Tone.Synth.detune. */
   detune?: boolean;
+  /** A note that overlaps the previous one starts a fresh oscillator (Groovebox's voices) instead of running on at the new pitch. */
+  restart?: boolean;
 }
 
 /**
- * Tone.Synth / MembraneSynth behaviour for percussive notes: every note gets
- * a fresh oscillator (as Tone restarts its source), which stops once the
- * envelope is silent. A retrigger cuts the previous source at the new note.
+ * Tone.Synth / MembraneSynth behaviour for percussive notes: a note gets a
+ * fresh oscillator, which stops once the envelope is silent. A note that
+ * arrives while the previous one still sounds keeps that oscillator running
+ * at the new pitch, as Tone's monophonic synths do, or with `restart` cuts it
+ * at the new note and starts a fresh one.
  */
 export class OneShotTone extends SoundNode {
   readonly name = "OneShotTone";
@@ -401,6 +405,7 @@ export class OneShotTone extends SoundNode {
   /** Present when created with `detune: true`; it drives every note's oscillators. */
   readonly detune: DetuneSource | null;
   private current: { tone: LeanTone; stopAt: number } | null = null;
+  private readonly restart: boolean;
 
   constructor(private readonly spec: ToneSpec, options: OneShotVoiceOptions & { pitch?: { octaves: number; pitchDecay: number } }) {
     super();
@@ -408,6 +413,7 @@ export class OneShotTone extends SoundNode {
     this.output = options.volume === undefined ? this.envelope : this.envelope.connect(new Gain(options.volume, "decibels"));
     this.pitch = options.pitch ?? null;
     this.detune = options.detune ? new DetuneSource(this.context) : null;
+    this.restart = options.restart === true;
   }
 
   private readonly pitch: { octaves: number; pitchDecay: number } | null;
@@ -417,9 +423,9 @@ export class OneShotTone extends SoundNode {
     const stopAt = this.envelope.sustain === 0
       ? time + this.envelope.attack + this.envelope.decay
       : release + this.envelope.release;
-    // Like Tone's monophonic synths, a note that arrives while the previous one
-    // still sounds keeps its oscillators running: same phase, new pitch.
-    const running = this.current && this.current.stopAt > time ? this.current.tone : null;
+    const sounding = this.current && this.current.stopAt > time ? this.current.tone : null;
+    if (sounding && this.restart) sounding.stop(time);
+    const running = this.restart ? null : sounding;
     const tone = running ?? new LeanTone(this.context, this.spec, frequency);
     if (!running) {
       if (this.detune) {

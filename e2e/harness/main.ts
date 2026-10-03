@@ -1,5 +1,5 @@
 import * as Tone from "tone";
-import { FrequencyEnvelope, swapSound, useContext } from "../../src/tone/index";
+import { FrequencyEnvelope, midiFrequency, setBpm, swapSound, toFrequency, toSeconds, useContext } from "../../src/tone/index";
 import {
   Clock, createBus, createChorus, createPingPong, createReverb, clap, crash, driveCurve, duck, fmBell, hallImpulse, kick, Kit, Master, MasterRecorder, midiToHz,
   noiseHit, Param, pulseWave, renderInChunks, snare, Transport, voice,
@@ -244,3 +244,33 @@ async function frequencyEnvelopeConformance() {
 }
 
 Object.assign((window as unknown as { klangwerk: object }).klangwerk, { frequencyEnvelopeConformance });
+
+/* ---- note values and pitches against Tone.Time and Tone.Frequency --------- */
+
+/** Values that differ from Tone's in any bit, at a few tempi. */
+function noteValueConformance(): string[] {
+  const mismatches: string[] = [];
+  const previous = useContext(new OfflineAudioContext(1, 128, 44_100));
+  try {
+    for (const tempo of [120, 128, 145, 150, 155, 172]) {
+      setBpm(tempo);
+      Tone.getTransport().bpm.value = tempo;
+      for (const value of ["1n", "2n", "4n", "8n", "16n", "32n", "8n.", "4n.", "4t", "8t", "16t", 0.25]) {
+        const ours = toSeconds(value);
+        const theirs = Tone.Time(value).toSeconds();
+        if (ours !== theirs) mismatches.push(`${tempo} ${value}: ${ours} vs ${theirs}`);
+      }
+    }
+    for (const note of ["B0", "C1", "C2", "B2", "C3", "D3", "F#1", "Db2", "A4"]) {
+      if (toFrequency(note) !== Tone.Frequency(note).toFrequency()) mismatches.push(`${note}: ${toFrequency(note)} vs ${Tone.Frequency(note).toFrequency()}`);
+    }
+    for (let midi = 21; midi <= 108; midi += 1) {
+      if (midiFrequency(midi) !== Tone.Frequency(midi, "midi").toFrequency()) mismatches.push(`midi ${midi}`);
+    }
+  } finally {
+    swapSound(previous);
+  }
+  return mismatches;
+}
+
+Object.assign((window as unknown as { klangwerk: object }).klangwerk, { noteValueConformance });
